@@ -1,12 +1,11 @@
 import argparse
 import re
-import math
 from Bio import SeqIO
-from typing import List, Tuple
+from Bio.SeqRecord import SeqRecord
 
 def parse_arguments() -> argparse.Namespace:
     """
-    Parse command-line arguments for DNA identififcation program.
+    Parse command-line arguments for DNA identification program.
 
     Returns
     argparse.Namespace
@@ -55,7 +54,7 @@ def sequence_identity(seq1: str, seq2: str) -> tuple[int, int]:
 
     return matches, valid_positions
 
-def find_best_match(query_seq: str, database_records: List[SeqRecord]) -> Tuple[SeqRecord, int, int, List[Tuple[str, float]]]:
+def find_best_match(query_seq: str, database_records: list[SeqRecord]) -> tuple[SeqRecord, int, int, list[tuple[str, float]]]:
     """ 
     Identify the database sequence most similar to the query sequence.
     
@@ -129,25 +128,39 @@ def main() -> None:
     5. Prints the results.
     """
 
-    #Parse command_line inputs
+    #Parse command-line inputs
     args = parse_arguments()
 
     #Load FASTA records
-    query_record = next(SeqIO.parse(args.query, "fasta"))
+    query_records = list(SeqIO.parse(args.query, "fasta"))
+
+    #Check if query record is empty, raise error if empty.
+    if not query_records:
+        raise ValueError("Query FASTA file contains no sequences.")
+    query_record = query_records[0]
+
     database_records = list(SeqIO.parse(args.db, "fasta"))
 
-    #Convert query sequence to string for comparison
-    query_seq = str(query_record.seq)
+    #Check if database is empty, raise error if empty.
+    if not database_records:
+        raise ValueError("Database FASTA file contains no sequences.")
+
+    #convert query sequence into string for comparison
+    query_seq = str(query_record.seq).upper()
+    
+    #Ensure query sequence contains valid DNA bases
+    if not any(base in "ATCG" for base in query_seq):
+        raise ValueError("Query sequence contains no valid DNA bases (A, T, C, G).")
 
     #Identify the closest sequence match
     best_record, matches, valid, probabilities = find_best_match(query_seq, database_records)
-
+    
     difference = valid - matches
 
     #Extract breed information from FASTA description
     breed = extract_breed(best_record.description)
 
-    #Estimate p-vaue for observing this similarity by chance
+    #Estimate p-value for observing this similarity by chance
     p_value = (0.25 ** matches) * len(database_records)
 
     print("Closest sequence:", best_record.id)
@@ -157,8 +170,13 @@ def main() -> None:
     probabilities.sort(key=lambda x: x[1], reverse=True)
 
     print("\nProbabilities across database:")
+
+    max_id_length = max(len(seq_id) for seq_id, _ in probabilities)
+    print(f"{'Rank':<5}{'Sequence ID':<{max_id_length}} Probability")
+    print("-" * (max_id_length + 20))
+
     for i, (seq_id, probability) in enumerate(probabilities, start=1):
-        print(f"{i}. {seq_id} probability={probability:.4f}")
+        print(f"{i:>2}. {seq_id:<20} probability={probability:.4f}")
     
     print("\np_value:", p_value)
 
