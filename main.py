@@ -1,5 +1,7 @@
 import argparse
 import re
+import pandas as pd
+
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 
@@ -114,6 +116,9 @@ def extract_breed(description: str) -> str:
         return match.group(1)
     else:
         return "Unknown"
+    
+def build_phylogeny(database_records):
+
 
 
 def main() -> None:
@@ -179,6 +184,8 @@ def main() -> None:
         print(f"{i:>2}. {seq_id:<20} probability={probability:.4f}")
     
     print("\np_value:", p_value)
+
+    build_phylogeny(database_records)
 
 
 
