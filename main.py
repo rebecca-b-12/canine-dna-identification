@@ -75,8 +75,10 @@ def find_best_match(query_seq: str, database_records: list[SeqRecord]) -> tuple[
         - probabilities: list of (sequence_id, similarity_probability)
     """
     best_record = None
-    best_score = -1
+    best_similarity = -1
+    best_matches = 0
     best_valid = 0
+
     probabilities = []
 
     #Compare the query sequence with each sequence in the database
@@ -86,16 +88,17 @@ def find_best_match(query_seq: str, database_records: list[SeqRecord]) -> tuple[
         matches, valid = sequence_identity(query_seq, sequence)
 
         #Calculate similarity probability
-        probability = matches / valid if valid > 0 else 0
-        probabilities.append((record.id, probability))
+        similarity = matches / valid if valid > 0 else 0
+        probabilities.append((record.id, similarity))
 
         #Update best match if this sequence has a higher score
-        if matches > best_score:
-            best_score = matches
+        if similarity > best_similarity:
+            best_similarity = similarity
+            best_matches = matches
             best_valid = valid
             best_record = record
 
-    return best_record, best_score, best_valid, probabilities
+    return best_record, best_matches, best_valid, probabilities
 
 def extract_breed(description: str) -> str:
     """
@@ -117,9 +120,6 @@ def extract_breed(description: str) -> str:
     else:
         return "Unknown"
     
-def build_phylogeny(database_records):
-
-
 
 def main() -> None:
     """
@@ -129,7 +129,7 @@ def main() -> None:
     1. Parses command-line arguments.
     2. Loads the query sequence and database sequences.
     3. Identifies the closest matching sequence.
-    4. Calculates sequence differences and probabilities.
+    4. Calculates sequence differences and similarity scores.
     5. Prints the results.
     """
 
@@ -170,23 +170,21 @@ def main() -> None:
 
     print("Closest sequence:", best_record.id)
     print("Breed:", breed)
-    print("Difference:", difference)
+    print("Difference (number of differing bases):", difference)
 
     probabilities.sort(key=lambda x: x[1], reverse=True)
 
-    print("\nProbabilities across database:")
+    print("\nSimilarity to query sequence (proportion of matching bases):")
 
     max_id_length = max(len(seq_id) for seq_id, _ in probabilities)
-    print(f"{'Rank':<5}{'Sequence ID':<{max_id_length}} Probability")
+
+    print(f"{'Rank':<5} {'Sequence ID':<{max_id_length}} Similarity")
     print("-" * (max_id_length + 20))
 
     for i, (seq_id, probability) in enumerate(probabilities, start=1):
-        print(f"{i:>2}. {seq_id:<20} probability={probability:.4f}")
+        print(f"{i:>2}. {seq_id:<{max_id_length}} {probability:.4f}")
     
-    print("\np_value:", p_value)
-
-    build_phylogeny(database_records)
-
+    print("\nP-value (probability of match by chance):", p_value)
 
 
 if __name__ == "__main__":
