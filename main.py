@@ -4,6 +4,9 @@ import pandas as pd
 
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
+from Bio.Phylo.TreeConstruction import DistanceMatrix, DistanceTreeConstructor
+from Bio import Phylo
+from Bio.SeqRecord import SeqRecord
 
 def parse_arguments() -> argparse.Namespace:
     """
@@ -21,6 +24,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--db", required=True, help="FASTA database file")
     #Add arguement for the query FASTA file to be identified
     parser.add_argument("--query", required=True, help="Query FASTA file")
+
+    parser.add_argument("--phylogeny", action="store_true", help="Display phylogenetic tree")
     #Parse and return the command-line arguments
     return parser.parse_args()
 
@@ -120,6 +125,45 @@ def extract_breed(description: str) -> str:
     else:
         return "Unknown"
     
+def build_phylogeny(database_records: list[SeqRecord]) -> None:
+
+    ids = [record.id for record in database_records]
+
+    df = pd.DataFrame(index=ids, columns=ids)
+
+    for i, rec1 in enumerate(database_records):
+        for j, rec2 in enumerate(database_records):
+
+            seq1 = str(rec1.seq)
+            seq2 = str(rec2.seq)
+
+            matches, valid = sequence_identity(seq1, seq2)
+
+            similarity = matches / valid if valid > 0 else 0
+            distance = 1 - similarity
+
+            df.iloc[i, j] = distance
+    
+    print("\nDistance matrix (pairwise distances between all sequences):")
+    print("Distance = 1 - similarity: showing first 5 rows for readability)\n")
+    print(df.head())
+    print(f"\nMatrix size: {df.shape[0]} x {df.shape[1]}")
+
+    matrix = []
+    for i in range(len(ids)):
+        row = []
+        for j in range(i + 1):
+            row.append(float(df.iloc[i, j]))
+        matrix.append(row)
+    
+    distance_matrix = DistanceMatrix(names=ids, matrix=matrix)
+
+    constructor = DistanceTreeConstructor()
+    tree = constructor.nj(distance_matrix)
+
+    print("\nPhylogenetic tree:")
+    Phylo.draw_ascii(tree)
+    
 
 def main() -> None:
     """
@@ -168,15 +212,21 @@ def main() -> None:
     #Estimate p-value for observing this similarity by chance
     p_value = (0.25 ** matches) * len(database_records)
 
+    print("\n" + "="*50)
+    print("BEST MATCH")
+    print("="*50)
+
     print("Closest sequence:", best_record.id)
     print("Breed:", breed)
     print("Difference (number of differing bases):", difference)
 
     probabilities.sort(key=lambda x: x[1], reverse=True)
 
-    print("\nSimilarity to query sequence (proportion of matching bases):")
+    print("\n" + "="*50)
+    print("TOP 10 MOST SIMILAR SEQUENCES")
+    print("="*50)
 
-    max_id_length = max(len(seq_id) for seq_id, _ in probabilities)
+    max_id_length = max(len(seq_id) for seq_id, _ in probabilities[:10])
 
     print(f"{'Rank':<5} {'Sequence ID':<{max_id_length}} Similarity")
     print("-" * (max_id_length + 20))
@@ -184,7 +234,23 @@ def main() -> None:
     for i, (seq_id, probability) in enumerate(probabilities, start=1):
         print(f"{i:>2}. {seq_id:<{max_id_length}} {probability:.4f}")
     
+    print("\n" + "="*50)
+    print("STATISTICS")
+    print("="*50)
+    
     print("\nP-value (probability of match by chance):", p_value)
+
+    print("\nPhylogenetic tree (Neighbor-Joining):")
+    print("All sequences are included.")
+    print("Branch lengths represent sequence dissimilarity (1 - similarity).")
+    print(f"Best match: {best_record.id}\n")
+
+    if args.phylogeny:
+        print("\n" + "="*50)
+        print("PHYLOGENETIC TREE")
+        print("="*50)
+
+        build_phylogeny(database_records)
 
 
 if __name__ == "__main__":
