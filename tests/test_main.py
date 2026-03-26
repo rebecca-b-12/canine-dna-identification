@@ -91,10 +91,12 @@ def test_validate_query_sequence_invalid():
         validate_query_sequence(record)
 
 def test_calculate_p_value():
-    p = calculate_p_value(matches=4, db_size=10)
+    p = calculate_p_value(matches=4, database_size=10)
+
+    expected = (0.25 ** 4) * 10
 
     assert isinstance(p, float)
-    assert 0 < p < 1
+    assert p == expected
 
 def test_probabilities_sorted():
     probs = [("a", 0.5), ("b", 0.9), ("c", 0.7)]
