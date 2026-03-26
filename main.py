@@ -1,12 +1,13 @@
 import argparse
 import re
 import pandas as pd
+import math
 
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Phylo.TreeConstruction import DistanceMatrix, DistanceTreeConstructor
 from Bio import Phylo
-from Bio.SeqRecord import SeqRecord
+from tabulate import tabulate
 
 def parse_arguments() -> argparse.Namespace:
     """
@@ -61,7 +62,7 @@ def sequence_identity(seq1: str, seq2: str) -> tuple[int, int]:
 
     return matches, valid_positions
 
-def find_best_match(query_seq: str, database_records: list[SeqRecord]) -> tuple[SeqRecord, int, int, list[tuple[str, float]]]:
+def find_best_match(query_seq: str, database_records: list[SeqRecord]) -> tuple[SeqRecord, int, int, list[tuple[str, float, float]]]:
     """ 
     Identify the database sequence most similar to the query sequence.
     
@@ -94,7 +95,8 @@ def find_best_match(query_seq: str, database_records: list[SeqRecord]) -> tuple[
 
         #Calculate similarity probability
         similarity = matches / valid if valid > 0 else 0
-        probabilities.append((record.id, similarity))
+        p_value = math.exp(matches * math.log(0.25)) * len(database_records)
+        probabilities.append((record.id, similarity, p_value))
 
         #Update best match if this sequence has a higher score
         if similarity > best_similarity:
@@ -125,7 +127,7 @@ def extract_breed(description: str) -> str:
     else:
         return "Unknown"
     
-def build_phylogeny(database_records: list[SeqRecord]) -> None:
+def build_phylogeny(database_records: list[SeqRecord], best_id: str) -> None:
 
     ids = [record.id for record in database_records]
 
@@ -144,10 +146,16 @@ def build_phylogeny(database_records: list[SeqRecord]) -> None:
 
             df.iloc[i, j] = distance
     
-    print("\nDistance matrix (pairwise distances between all sequences):")
-    print("Distance = 1 - similarity: showing first 5 rows for readability)\n")
+    print("\nDistance matrix (used to construct phylogenetic tree):")
+    print("(Distance = 1 - similarity; showing first 5 rows for readability)\n")
     print(df.head())
     print(f"\nMatrix size: {df.shape[0]} x {df.shape[1]}")
+    print("These distances are used to build the Neighbour-Joining tree.\n")
+
+    print("\nPhylogenetic tree (Neighbour-Joining):")
+    print("All sequences are included.")
+    print("Branch lengths represent sequence dissimilarity (1 - similarity).")
+    print(f"Best match: {best_id}\n")
 
     matrix = []
     for i in range(len(ids)):
@@ -161,57 +169,26 @@ def build_phylogeny(database_records: list[SeqRecord]) -> None:
     constructor = DistanceTreeConstructor()
     tree = constructor.nj(distance_matrix)
 
-    print("\nPhylogenetic tree:")
     Phylo.draw_ascii(tree)
-    
 
-def main() -> None:
-    """
-    Run the DNA identification workflow
+def load_fasta_records(path: str) -> list[SeqRecord]:
+    records = list(SeqIO.parse(path, "fasta"))
+    if not records:
+        raise ValueError(f"FASTA file '{path}' contains no sequences.")
+    return records
 
-    The program:
-    1. Parses command-line arguments.
-    2. Loads the query sequence and database sequences.
-    3. Identifies the closest matching sequence.
-    4. Calculates sequence differences and similarity scores.
-    5. Prints the results.
-    """
+def validate_query_sequence(query_record: SeqRecord) -> str:
+    query_seq = str(query_record.seq.upper())
 
-    #Parse command-line inputs
-    args = parse_arguments()
-
-    #Load FASTA records
-    query_records = list(SeqIO.parse(args.query, "fasta"))
-
-    #Check if query record is empty, raise error if empty.
-    if not query_records:
-        raise ValueError("Query FASTA file contains no sequences.")
-    query_record = query_records[0]
-
-    database_records = list(SeqIO.parse(args.db, "fasta"))
-
-    #Check if database is empty, raise error if empty.
-    if not database_records:
-        raise ValueError("Database FASTA file contains no sequences.")
-
-    #convert query sequence into string for comparison
-    query_seq = str(query_record.seq).upper()
-    
-    #Ensure query sequence contains valid DNA bases
     if not any(base in "ATCG" for base in query_seq):
         raise ValueError("Query sequence contains no valid DNA bases (A, T, C, G).")
-
-    #Identify the closest sequence match
-    best_record, matches, valid, probabilities = find_best_match(query_seq, database_records)
     
-    difference = valid - matches
+    return query_seq
 
-    #Extract breed information from FASTA description
-    breed = extract_breed(best_record.description)
+def calculate_p_value(matches: int, db_size: int) -> float:
+    return (0.25 ** matches) * db_size
 
-    #Estimate p-value for observing this similarity by chance
-    p_value = (0.25 ** matches) * len(database_records)
-
+def print_best_match(best_record: SeqRecord, breed: str, difference: int) -> None:
     print("\n" + "="*50)
     print("BEST MATCH")
     print("="*50)
@@ -220,38 +197,70 @@ def main() -> None:
     print("Breed:", breed)
     print("Difference (number of differing bases):", difference)
 
+    seq = str(best_record.seq)
+    print("Sequence (first 50 bp):", seq[:50] + "...")
+
+def print_similarity_table(probabilities: list[tuple[str, float]]) -> None:
+    print("\n" + "="*50)
+    print("SIMILARITY ACROSS ALL SEQUENCES")
+    print("="*50)
+    print("(Sorted by similarity to query sequence)\n")
+
+    print(f"Total sequences: {len(probabilities)}\n")
+
+    table_data = []
+
+    for i, (seq_id, similarity, p_value) in enumerate(probabilities, start=1):
+        p_display = f"{p_value:.2e}" if p_value > 1e-300 else "<1e-300"
+        table_data.append([i, seq_id, similarity, p_display])
+
+    print(tabulate(
+        table_data, 
+        headers=["Rank", "Sequence ID", "Similarity", "P-value"], 
+        tablefmt="fancy_grid",
+        floatfmt=".4f"))
+
+def print_summary(matches: int, valid: int, p_value: float) -> None:
+    print("\n" + "="*50)
+    print("SUMMARY")
+    print("="*50)
+
+    best_similarity = matches / valid if valid > 0 else 0
+    p_display = f"{p_value:.2e}" if p_value > 1e-300 else "<1e-300"
+
+    print(f"Best match similarity: {best_similarity:.4f}")
+    print(f"Best match p-value: {p_display}")
+
+def main() -> None:
+    args = parse_arguments()
+
+    query_records = load_fasta_records(args.query)
+    database_records = load_fasta_records(args.db)
+
+    query_record = query_records[0]
+
+    query_seq = validate_query_sequence(query_record)
+
+    best_record, matches, valid, probabilities = find_best_match(query_seq, database_records)
+
+    difference = valid - matches
+    breed = extract_breed(best_record.description)
+    p_value = calculate_p_value(matches, len(database_records))
+
     probabilities.sort(key=lambda x: x[1], reverse=True)
 
-    print("\n" + "="*50)
-    print("TOP 10 MOST SIMILAR SEQUENCES")
-    print("="*50)
-
-    max_id_length = max(len(seq_id) for seq_id, _ in probabilities[:10])
-
-    print(f"{'Rank':<5} {'Sequence ID':<{max_id_length}} Similarity")
-    print("-" * (max_id_length + 20))
-
-    for i, (seq_id, probability) in enumerate(probabilities, start=1):
-        print(f"{i:>2}. {seq_id:<{max_id_length}} {probability:.4f}")
-    
-    print("\n" + "="*50)
-    print("STATISTICS")
-    print("="*50)
-    
-    print("\nP-value (probability of match by chance):", p_value)
-
-    print("\nPhylogenetic tree (Neighbor-Joining):")
-    print("All sequences are included.")
-    print("Branch lengths represent sequence dissimilarity (1 - similarity).")
-    print(f"Best match: {best_record.id}\n")
+    print_best_match(best_record, breed, difference)
+    print_similarity_table(probabilities)
+    print_summary(matches, valid, p_value)
 
     if args.phylogeny:
         print("\n" + "="*50)
         print("PHYLOGENETIC TREE")
         print("="*50)
 
-        build_phylogeny(database_records)
+        print(f"\nTotal sequences analysed: {len(database_records)}\n")
 
+        build_phylogeny(database_records, best_record.id)
 
 if __name__ == "__main__":
     main() 
