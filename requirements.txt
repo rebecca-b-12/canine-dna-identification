@@ -1,3 +1,5 @@
 biopython==1.86
+matplotlib==3.10.8
 pandas==3.0.1
 pytest==9.0.2
+tabulate==0.10.0

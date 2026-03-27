@@ -29,9 +29,9 @@ The program requires two inputs:
 - A FASTA file containing known dog DNA sequences (database)
 - A FASTA file containing an unknown query sequence
 Basic usage:
-- python main.py --db dog_breeds.fa --query mystery.fa
+- python main.py --db data/dog_breeds.fa --query data/mystery.fa
 With phylogenetic analysis:
-- python main.py --db dog_breeds.fa --query mystery.fa --phylogeny
+- python main.py --db data/dog_breeds.fa --query data/mystery.fa --phylogeny
 
 
 # Example Output
@@ -79,16 +79,18 @@ Tests verify:
 # Project Structure
 canine-dna-identification/
 │
-├── main.py                # main DNA identification program
-├── dog_breeds.fa          # FASTA database of dog sequences
-├── mystery.fa             # query sequence
-├── requirements.txt       # project dependencies
-├── README.md              # project documentation
+├── main.py              # main DNA identification program
+├── requirements.txt     # project dependencies
+├── README.md            # project documentation
+│
+├── data/
+│   ├── dog_breeds.fa    # FASTA database of dog sequences
+│   └── mystery.fa       # query sequence
 │
 ├── tests/
-│   └── test_main.py       # unit and integration tests
+│   └── test_main.py     # unit and integration tests
 │
-└── venv/                  # virtual environment (optional)
+└── venv/                # virtual environment (optional)
 
 # Assumptions
 - DNA bases are assumed to have equal probability (0.25 each)
