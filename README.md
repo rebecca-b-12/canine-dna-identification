@@ -53,7 +53,7 @@ Summary
 # Phylogenetic Analysis
 When the --phylogeny flag is used:
 - A full phylogenetic tree (including all sequences) is printed in the terminal
-- A cleaner tree image is saved as: phylogenetic_tree.png
+- A cleaner tree image is saved to the 'output/' directory as: phylogenetic_tree.png
  
  Notes:
  - Method: Neighbour-Joining
@@ -79,18 +79,21 @@ Tests verify:
 # Project Structure
 canine-dna-identification/
 │
-├── main.py              # main DNA identification program
-├── requirements.txt     # project dependencies
-├── README.md            # project documentation
+├── main.py                      # main DNA identification program
+├── requirements.txt             # project dependencies
+├── README.md                    # project documentation
 │
 ├── data/
-│   ├── dog_breeds.fa    # FASTA database of dog sequences
-│   └── mystery.fa       # query sequence
+│   ├── dog_breeds.fa            # FASTA database of dog sequences
+│   └── mystery.fa               # query sequence
+│
+├── output/
+│   └── phylogenetic_tree.png    # generated phylogenetic tree image
 │
 ├── tests/
-│   └── test_main.py     # unit and integration tests
+│   └── test_main.py             # unit and integration tests
 │
-└── venv/                # virtual environment (optional)
+└── venv/                        # virtual environment (optional, not committed)
 
 # Assumptions
 - DNA bases are assumed to have equal probability (0.25 each)

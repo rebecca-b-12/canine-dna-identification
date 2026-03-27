@@ -41,16 +41,8 @@ def parse_arguments() -> argparse.Namespace:
         "--phylogeny", action="store_true", help="Display phylogenetic tree (optional)")
 
     # Parse command-line arguments into a Namespace object
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    # Check database and query file exist before proceeding
-    if not os.path.exists(args.db):
-        raise FileNotFoundError(f"Database file not found: {args.db}")
-    if not os.path.exists(args.query):
-        raise FileNotFoundError(f"Query file not found: {args.query}")
-    
-    # Return validated arguments
-    return args
 
 def sequence_identity(seq1: str, seq2: str) -> tuple[int, int]:
     """
@@ -322,8 +314,11 @@ def build_phylogeny(database_records: list[SeqRecord], best_id: str, probabiliti
     ax.set_xlabel("Genetic distance (1 - similarity)")
     ax.set_ylabel("Sequences (taxa)")
 
+    # Ensure output directory exists
+    os.makedirs("output", exist_ok=True)
+
     # Save output
-    output_file = "phylogenetic_tree.png"
+    output_file = os.path.join("output", "phylogenetic_tree.png")
     plt.savefig(output_file, bbox_inches="tight")
     plt.close()
 
@@ -353,7 +348,11 @@ def load_fasta_records(path: str) -> list[SeqRecord]:
     """
     # Check the file exists before attempting to read it
     if not os.path.exists(path):
-        raise FileNotFoundError("f:Fasta file '{path}' not found.")
+        alt_path = os.path.join("data", path)
+        if os.path.exists(alt_path):
+            path = alt_path
+        else:
+            raise FileNotFoundError(f"Fasta file not found: {path}")
     
     # Parse FASTA records using Biopython
     records = list(SeqIO.parse(path, "fasta"))
@@ -560,10 +559,6 @@ def main() -> None:
     # Load FASTA records
     query_records = load_fasta_records(args.query)
     database_records = load_fasta_records(args.db)
-
-    # Ensure query file contains at least one sequence
-    if not query_records:
-        raise ValueError("Query FASTA file contains no sequences.")
 
     # Use the first query sequence
     query_record = query_records[0]
